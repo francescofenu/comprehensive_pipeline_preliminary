@@ -44,5 +44,13 @@ environments:
     description: "Stable cosipy environment"
     python_version: "3.11"
   
+  cosipy_laura:
+    requirements: env/requirements_laura.txt
+    requirements_no_deps: env/requirements_nodeps_laura.txt
+    venv_path: /home/gamma/envs/cosipy_laura
+    enabled: true
+    description: "Laura cosipy branch environment"
+    python_version: "3.11"
+
 # Default environment to use if none specified
-default_environment: cosipy
+default_environment: cosipy_laura
