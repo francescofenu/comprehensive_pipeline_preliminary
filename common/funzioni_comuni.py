@@ -1,0 +1,147 @@
+
+def read_cosi_ts_detect(inputfile):
+    f_file = open(inputfile)
+    content_file = f_file.read().splitlines()
+
+    measured_l=0
+    measured_b=0
+    error_coo=0
+    maxumumTS=0
+    for line_file in content_file:
+        line_object=line_file.split()
+        if line_object[0]=="Galactic" and line_object[1]=="coordinate":
+            measured_l = float(line_object[5].split('=')[1].replace(",",""))
+            measured_b = float(line_object[6].split('=')[1].replace(",",""))
+        if line_object[0]=="Linear" and line_object[1]=="Size":
+             error_coo=float(line_object[6])
+        if line_object[0]=="Maximum" and line_object[1]=="TS=":
+            maxumumTS=float(line_object[2])
+    return measured_l,measured_b,error_coo,maxumumTS
+
+
+def read_base_pipeline_params(namefile):
+    t_scan_start_back=0
+    t_scan_stop_back=0
+    t_scan_start_source=0
+    t_scan_stop_source=0
+    external_trigger_file=""
+    output_dir=""
+    t_scan_delta=0
+    f_file = open(namefile)
+    content_file = f_file.read().splitlines()
+    for line_file in content_file:
+        line_object=line_file.split()
+        if line_object[0]=="t_scan_start_back":
+            t_scan_start_back=int( line_object[1])
+        if line_object[0]=="t_scan_stop_back":
+            t_scan_stop_back=int( line_object[1])
+        if line_object[0]=="t_scan_start_source":
+            t_scan_start_source=int( line_object[1])
+        if line_object[0]=="t_scan_stop_source":
+            t_scan_stop_source=int( line_object[1])
+        if line_object[0]=="t_scan_delta":
+            t_scan_delta=int( line_object[1])
+        if line_object[0]=="ExternalTrigger":
+            external_trigger_file=str( line_object[1])
+        if line_object[0]=="OutputDir":
+            output_dir=str( line_object[1])
+        
+
+    return t_scan_start_source,t_scan_stop_source,t_scan_start_back,t_scan_stop_back,t_scan_delta,external_trigger_file,output_dir
+
+def read_trigger_content(contentname):
+    externalTrigger_start=0
+    externalTrigger_stop=0
+    f_file = open(contentname)
+    content_file = f_file.read().splitlines()
+    for line_trigger_tot in content_file:
+        line_trigger=line_trigger_tot.split()
+        print('********************** ',line_trigger[0])
+        if line_trigger[0]=="timeStart":
+            externalTrigger_start=int(line_trigger[1])
+        if line_trigger[0]=="timeStop":
+            externalTrigger_stop=int(line_trigger[1])
+    return externalTrigger_start,externalTrigger_stop
+
+def format_override_val(fitmodel,measured_l,measured_b,error_coo):
+    modelname="zero"
+    stringtooverride="zero"
+    if fitmodel==0:
+        modelname="pw"
+        stringtooverride="model:template "
+    if fitmodel==1:
+        modelname="band"
+        stringtooverride="model:template_grb "
+
+    l_max= measured_l + 3.*error_coo  
+    l_min= measured_l - 3.*error_coo
+    b_max= measured_b + 3.*error_coo  
+    b_min= measured_b - 3.*error_coo
+    var_override1 = stringtooverride+"(point source):position:l:value=" + str(measured_l)
+    var_override2 = stringtooverride+"(point source):position:b:value=" + str(measured_b)
+    var_override3 = stringtooverride+"(point source):position:l:free=false"
+    var_override4 = stringtooverride+"(point source):position:l:min_value=" + str(l_min)
+    var_override5 = stringtooverride+"(point source):position:l:max_value=" +str(l_max)
+    var_override6 = stringtooverride+"(point source):position:b:free=false"
+    var_override7 = stringtooverride+"(point source):position:b:min_value=" + str(b_min)
+    var_override8 = stringtooverride+"(point source):position:b:max_value=" + str(b_max)
+
+    return var_override1,var_override2,var_override3,var_override4,var_override5,var_override6,var_override7,var_override8,modelname
+
+
+def read_file_histo(startPoint,endPoint,resolutionImage_tmp,binNumTime_tmp,output_name,eventDuration,numEvt):
+    import cosipy
+    import torch
+    from histpy import Histogram
+    data_full     = Histogram.open("/home/gamma/workspace/data/apps/tsel_binned_data_galactic_Background_forTraining_BACKONLY.hdf5")
+    imagePlotX_Z_t_tmp = torch.zeros(numEvt,resolutionImage_tmp,resolutionImage_tmp,resolutionImage_tmp,int(binNumTime_tmp))
+    values = data_full.slice[{ "Time": slice(startPoint,endPoint) }].project("PsiChi","Phi","Time").contents
+    histoPhi = data_full.slice[{ "Time": slice(startPoint,endPoint) }].project('Phi')
+    histoTime = data_full.slice[{ "Time": slice(startPoint,endPoint) }].project('Time')
+    
+    f_out = open(output_name,"w")
+    referenceBin=0
+    for iii in range(histoTime.nbins):
+        if iii%eventDuration==0:
+            referenceBin=iii
+        binTime = int(histoTime.axes['Time'].centers[iii].value - histoTime.axes['Time'].centers[referenceBin].value)             
+
+
+        for i in range(data_full.project('PsiChi').nbins):
+            Psi = hp.pix2ang(8, i)[0]
+            Chi = hp.pix2ang(8, i)[1]
+            binPsi = int(np.rad2deg(Psi) / 180. * resolutionImage)
+            binChi = int(np.rad2deg(Chi) / 360. * resolutionImage)
+
+            for ii in range(histoPhi.nbins):
+                binPhi = int(histoPhi.axes['Phi'].centers[ii].value / 180. * resolutionImage)
+                if values[i][ii][iii]>0:
+                    imagePlotX_Z_t_tmp[int(iii/eventDuration)][binPsi][binChi][binPhi][binTime] += values[i][ii][iii]
+                    print(int(iii/eventDuration),binPsi,binChi,binPhi,binTime,values[i][ii][iii],file=f_out)
+        if iii%10==0:
+            print(float(iii)/float(histoTime.nbins)*100,' % of data processed ')
+    f_out.close()
+
+    return imagePlotX_Z_t_tmp
+
+def read_spectral_fit_info(filetoprint,dir_plots,modeltoplot):
+    from histpy import Histogram
+    import os
+    import re
+    import h5py
+
+    nameFiles_fit = []
+    for f in os.listdir(dir_plots):
+        if f.lower().endswith(".h5") and str(modeltoplot) in f:
+            fileName=dir_plots+ f
+            nameFiles_fit.append(fileName)
+            print(f)
+            
+    nameFiles_fit_sorted = sorted(
+        nameFiles_fit,
+        key=lambda f: int(re.findall(r'\d+', f)[-1])
+    )
+
+    with h5py.File(nameFiles_fit_sorted[int(filetoprint)], "r") as f:
+        data = f['AnalysisResults_0']    # leggi un dataset come array NumPy
+        return data['NAME'][:],data['VALUE'][:],data['NEGATIVE_ERROR'][:],data['POSITIVE_ERROR'][:],data['UNIT'][:]

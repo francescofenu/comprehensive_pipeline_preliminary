@@ -2,14 +2,18 @@ from airflow.operators.python import ExternalPythonOperator
 from airflow.operators.python import BranchPythonOperator
 from airflow.operators.empty import EmptyOperator
 from airflow.sensors.filesystem import FileSensor
-
 from airflow import DAG
+import sys
 
 EXTERNAL_PYTHON = "/home/gamma/envs/cosipy_laura/bin/python"
 
 cosipy_yaml_input_file = "/home/gamma/workspace/data/transient/pipeline_zero4_galactic_large_2.yaml"
 pipeline_configs= "/home/gamma/workspace/data/transient/config_pipeline2.txt"
-base_funct_dir="/home/gamma/workspace/data/" # directory where common/ is located
+base_funct_dir="/home/gamma/airflow/modules_pool/comprehensive-transient-analysis-pipeline/" # directory where common/ is located
+
+sys.path.append(base_funct_dir)
+from common.funzioni_comuni import read_base_pipeline_params
+t_1,t_2,t_11,t_22,t_delta,cont_trigg,dir_out = read_base_pipeline_params(pipeline_configs)
 
 def cleanup_and_format():
     # some cleanup and some service directory creation
@@ -18,12 +22,6 @@ def cleanup_and_format():
     subprocess.run('mkdir /home/gamma/workspace/data/garbagebin', shell=True)
     subprocess.run('mv /home/gamma/workspace/data/transient/tsel_* /home/gamma/workspace/data/garbagebin', shell=True)
     subprocess.run('mv /home/gamma/workspace/data/transient/bin* /home/gamma/workspace/data/garbagebin', shell=True)
-    #subprocess.run('ln -s /home/gamma/workspace/data/transient/bin* /home/gamma/workspace/data/garbagebin', shell=True)
-    subprocess.run('ls -lrt /home/gamma/', shell=True)
-
-    subprocess.run('ls -lrt /home/gamma/airflow/modules', shell=True)
-    subprocess.run('pwd', shell=True)
-
 
 
 def execute_bindata_bck_model(cosipy_yaml_input,pipeline_input_file,base_funct):
@@ -65,9 +63,6 @@ def execute_tsmap_externaltrigger(cosipy_yaml_input,pipeline_input_file,base_fun
     externalTrigger_start,externalTrigger_stop = read_trigger_content(content_trigger)
     outputFile=directory_output+'cosi-tsdetect_' + str(externalTrigger_start) + '.txt'
     newpngFileName=directory_output+'raw_ts_' + str(externalTrigger_start) + '.png'
-
-    print('######################## ',content_trigger)
-    print('######################## ',externalTrigger_start,externalTrigger_stop)
     
     args=['--config',cosipy_yaml_input,'--output-dir',directory_output,'--overwrite','--tstart', str(externalTrigger_start), '--tstop', str(externalTrigger_stop)]
     with open(outputFile, "w") as f:
@@ -437,9 +432,7 @@ def prepare_alert_external(cosipy_yaml_input,pipeline_input_file,base_funct):
         nameFiles_TS,
         key=lambda f: int(re.findall(r'\d+', f)[-1])
     )
-
-        
-    
+  
     with open(directory_output+"Pseudo_alert.txt", "w") as f:
         print('Alert from external trigger ',file=f)
         print('Origin XYZ (Fast pipeline, GCN...)',file=f)
@@ -499,7 +492,7 @@ with DAG(
         python=EXTERNAL_PYTHON,  # Specifica l'interprete dell'ambiente cosipy
         python_callable=cleanup_and_format,
     )
-    '''
+    
     executebinning_bck = ExternalPythonOperator(
         task_id="execute_bindata_bck_model",
         python=EXTERNAL_PYTHON,  # Specifica l'interprete dell'ambiente cosipy
@@ -548,7 +541,7 @@ with DAG(
         task_id=modelname,
         python=EXTERNAL_PYTHON,  # Specifica l'interprete dell'ambiente cosipy
         python_callable=execute_threemlfit,
-        op_args=[cosipy_yaml_input_file,pipeline_configs,'/home/gamma/workspace/data/transient/timescan/',i,1,base_funct_dir],
+        op_args=[cosipy_yaml_input_file,pipeline_configs,dir_out+'timescan/',i,1,base_funct_dir],
         )
         fittask_scan.append(t)
 
@@ -564,13 +557,13 @@ with DAG(
         task_id=modelname,
         python=EXTERNAL_PYTHON,  # Specifica l'interprete dell'ambiente cosipy
         python_callable=execute_threemlfit,
-        op_args=[cosipy_yaml_input_file,pipeline_configs,'/home/gamma/workspace/data/transient/',i,0,base_funct_dir],
+        op_args=[cosipy_yaml_input_file,pipeline_configs,dir_out,i,0,base_funct_dir],
         )
         fittask_externaltrigger.append(t)
-    '''
+    
     wait_for_file = FileSensor(
         task_id="wait_for_file",
-        filepath="/home/gamma/workspace/data/transient/InputFiles/galbk_grbdc3_full_110605183.fits",  # percorso del file da monitorare
+        filepath=dir_out+"InputFiles/galbk_grbdc3_full.fits",  # percorso del file da monitorare
         poke_interval=5,   # controlla ogni 5 secondi
         timeout=60 * 3,    # smette dopo 3 minuti
         mode="poke",      # oppure "reschedule" per ridurre il carico
@@ -579,13 +572,13 @@ with DAG(
     
     wait_external_trigger = FileSensor(
         task_id="wait_external_trigger",
-        filepath="/home/gamma/workspace/data/transient/InputFiles/externalTriggerInfos.txt",  # percorso del file da monitorare
+        filepath=dir_out+"InputFiles/externalTriggerInfos.txt",  # percorso del file da monitorare
         poke_interval=5,   # controlla ogni 5 secondi
         timeout=60 * 3,    # smette dopo 3 minuti
         mode="poke",      # oppure "reschedule" per ridurre il carico
         soft_fail=True
     )
-    '''
+    
     
     merge_spectral_fit_multiple = []
     for i in range(2):
@@ -613,17 +606,16 @@ with DAG(
     
     join = EmptyOperator(task_id="join")
 
-    '''
+    
      
     wait_for_file>>cleanup_format
-    '''
     cleanup_format>>[executebinning_bck,executebinning_grb]>>join
     join>>[wait_external_trigger>>tsmap_singlesource,tsmap_singlesource_scan] #,anomalydetection]
     tsmap_singlesource_scan>>fittask_scan
     tsmap_singlesource>>fittask_externaltrigger
     fittask_scan>>build_pdf
     fittask_externaltrigger>>build_pdf>>merge_spectral_fit_multiple>>prepare_alert_external_exe
-    '''
+    
 
     '''
     choice = BranchPythonOperator(
