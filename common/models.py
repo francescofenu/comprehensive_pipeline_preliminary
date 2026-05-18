@@ -1,3 +1,5 @@
+import torch
+import torch.nn as nn
 
 class SimpleCNN3(nn.Module):
     def __init__(self):
@@ -17,7 +19,7 @@ class SimpleCNN3(nn.Module):
             nn.Sigmoid(),
             nn.ConvTranspose3d(1, 1, 3),
             nn.Sigmoid(),
-            nn.ConvTranspose3d(1, 1, 2),#3
+            nn.ConvTranspose3d(1, 1, 2),
             nn.Sigmoid()
         )
 

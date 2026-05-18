@@ -8,7 +8,7 @@ import sys
 EXTERNAL_PYTHON = "/home/gamma/envs/cosipy_laura/bin/python"
 
 cosipy_yaml_input_file = "/home/gamma/workspace/data/transient/pipeline_zero4_galactic_large_2.yaml"
-pipeline_configs= "/home/gamma/workspace/data/transient/config_pipeline2.txt"
+pipeline_configs= "/home/gamma/workspace/data/transient/config_pipeline2.txt" #_GRB08.txt"
 base_funct_dir="/home/gamma/airflow/modules_pool/comprehensive-transient-analysis-pipeline/" # directory where common/ is located
 
 sys.path.append(base_funct_dir)
@@ -22,7 +22,12 @@ def cleanup_and_format():
     subprocess.run('mkdir /home/gamma/workspace/data/garbagebin', shell=True)
     subprocess.run('mv /home/gamma/workspace/data/transient/tsel_* /home/gamma/workspace/data/garbagebin', shell=True)
     subprocess.run('mv /home/gamma/workspace/data/transient/bin* /home/gamma/workspace/data/garbagebin', shell=True)
-
+    subprocess.run('mv /home/gamma/workspace/data/transient/*png /home/gamma/workspace/data/garbagebin', shell=True)
+    subprocess.run('mv /home/gamma/workspace/data/transient/timescan/*png /home/gamma/workspace/data/garbagebin', shell=True)
+    subprocess.run('mv /home/gamma/workspace/data/transient/timescan/*h5 /home/gamma/workspace/data/garbagebin', shell=True)
+    subprocess.run('mv /home/gamma/workspace/data/transient/timescan/*txt /home/gamma/workspace/data/garbagebin', shell=True)
+    subprocess.run('mv /home/gamma/workspace/data/transient/*pdf /home/gamma/workspace/data/garbagebin', shell=True)
+    subprocess.run('mv /home/gamma/workspace/data/transient/*h5 /home/gamma/workspace/data/garbagebin', shell=True)
 
 def execute_bindata_bck_model(cosipy_yaml_input,pipeline_input_file,base_funct):
     import cosipy
@@ -32,7 +37,7 @@ def execute_bindata_bck_model(cosipy_yaml_input,pipeline_input_file,base_funct):
     sys.path.append(base_funct)
     from common.funzioni_comuni import read_base_pipeline_params
 
-    t_scan_start_source,t_scan_stop_source,t_scan_start_back,t_scan_stop_back,t_scan_delta,content_trigger,directory_output = read_base_pipeline_params(pipeline_input_file)
+    t_scan_start_source,t_scan_stop_source,t_scan_start_back,t_scan_stop_back,t_scan_delta,content_trigger,threshold_TS,directory_output = read_base_pipeline_params(pipeline_input_file)
 
     args=['--config',cosipy_yaml_input,'--config_group','bindata_bk','--overwrite', '--suffix','Background_Model','--output-dir',directory_output,'--tmin', str(t_scan_start_back), '--tmax', str(t_scan_stop_back)]
     cosi_bindata (argv=args)
@@ -45,7 +50,7 @@ def execute_bindata_grb(cosipy_yaml_input,pipeline_input_file,base_funct):
     sys.path.append(base_funct)
     from common.funzioni_comuni import read_base_pipeline_params
     
-    t_scan_start_source,t_scan_stop_source,t_scan_start_back,t_scan_stop_back,t_scan_delta,content_trigger,directory_output = read_base_pipeline_params(pipeline_input_file)
+    t_scan_start_source,t_scan_stop_source,t_scan_start_back,t_scan_stop_back,t_scan_delta,content_trigger,threshold_TS,directory_output = read_base_pipeline_params(pipeline_input_file)
     args=['--config',cosipy_yaml_input,'--config_group','bindata_soubk','--overwrite', '--suffix','galbk_grbdc3','--output-dir',directory_output,'--tmin', str(t_scan_start_source), '--tmax', str(t_scan_stop_source)]
     cosi_bindata (argv=args)
     
@@ -59,7 +64,7 @@ def execute_tsmap_externaltrigger(cosipy_yaml_input,pipeline_input_file,base_fun
     sys.path.append(base_funct)
     from common.funzioni_comuni import read_base_pipeline_params,read_trigger_content
 
-    t_scan_start_source,t_scan_stop_source,t_scan_start_back,t_scan_stop_back,t_scan_delta,content_trigger,directory_output = read_base_pipeline_params(pipeline_input_file)
+    t_scan_start_source,t_scan_stop_source,t_scan_start_back,t_scan_stop_back,t_scan_delta,content_trigger,threshold_TS,directory_output = read_base_pipeline_params(pipeline_input_file)
     externalTrigger_start,externalTrigger_stop = read_trigger_content(content_trigger)
     outputFile=directory_output+'cosi-tsdetect_' + str(externalTrigger_start) + '.txt'
     newpngFileName=directory_output+'raw_ts_' + str(externalTrigger_start) + '.png'
@@ -79,7 +84,7 @@ def execute_tsmap_scan(cosipy_yaml_input,pipeline_input_file,base_funct):
     sys.path.append(base_funct)
     from common.funzioni_comuni import read_base_pipeline_params
     
-    t_scan_start_source,t_scan_stop_source,t_scan_start_back,t_scan_stop_back,t_scan_delta,content_trigger,directory_output = read_base_pipeline_params(pipeline_input_file)
+    t_scan_start_source,t_scan_stop_source,t_scan_start_back,t_scan_stop_back,t_scan_delta,content_trigger,threshold_TS,directory_output = read_base_pipeline_params(pipeline_input_file)
     subprocess.run('mkdir '+directory_output+'timescan', shell=True)
 
     fileNum=0
@@ -102,77 +107,114 @@ def execute_tsmap_scan(cosipy_yaml_input,pipeline_input_file,base_funct):
 def AnomalyDetection_autoencoder(cosipy_yaml_input,pipeline_input_file,base_funct):
     import cosipy
     import torch
+    import torch.nn as nn
     import subprocess
     from contextlib import redirect_stdout
+    import matplotlib.pyplot as plt
+    import numpy as np
     from cosipy.pipeline.task.task import cosi_tsdetect
+    from cosipy.pipeline.src.io import load_ori
     import sys
     sys.path.append(base_funct)
-    from common.funzioni_comuni import read_base_pipeline_params,read_file_histo
-    from histpy import Histogram
-    t_scan_start_source,t_scan_stop_source,t_scan_start_back,t_scan_stop_back,t_scan_delta,content_trigger = read_base_pipeline_params(pipeline_input_file)
-    
-    #data_full     = Histogram.open("/home/gamma/workspace/data/transient/tsel_binned_data_galactic_Background_forTraining_BACKONLY.hdf5")
-    timeBin = 1
-    t0_test=12000
-    t0_dataset=t0_test
-    durationTot=1000
-    durationEvent = 100
-    numberEventstest = 10
-    binNumTime=durationEvent/timeBin
-    resolutionImage = 50
-    FileName="/home/gamma/workspace/data/transient/FileOut_test_back_full_backgr"
-    startPoint=t0_dataset
-    endPoint=t0_dataset+durationTot
-    
-    #imagePlotX_Z_t_test = read_file_histo(t0_dataset,t0_dataset+durationTot,resolutionImage,binNumTime,FileName,durationEvent,numberEventstest)
-    '''
-    imagePlotX_Z_t_tmp = torch.zeros(numberEventstest,resolutionImage,resolutionImage,resolutionImage,int(binNumTime))
-    values = data_full.slice[{ "Time": slice(startPoint,endPoint) }].project("PsiChi","Phi","Time").contents
-    histoPhi = data_full.slice[{ "Time": slice(startPoint,endPoint) }].project('Phi')
-    histoTime = data_full.slice[{ "Time": slice(startPoint,endPoint) }].project('Time')
-    
-    f_out = open(FileName,"w")
-    referenceBin=0
-    for iii in range(histoTime.nbins):
-        if iii%eventDuration==0:
-            referenceBin=iii
-        binTime = int(histoTime.axes['Time'].centers[iii].value - histoTime.axes['Time'].centers[referenceBin].value)             
-
-
-        for i in range(data_full.project('PsiChi').nbins):
-            Psi = hp.pix2ang(8, i)[0]
-            Chi = hp.pix2ang(8, i)[1]
-            binPsi = int(np.rad2deg(Psi) / 180. * resolutionImage)
-            binChi = int(np.rad2deg(Chi) / 360. * resolutionImage)
-
-            for ii in range(histoPhi.nbins):
-                binPhi = int(histoPhi.axes['Phi'].centers[ii].value / 180. * resolutionImage)
-                if values[i][ii][iii]>0:
-                    imagePlotX_Z_t_tmp[int(iii/eventDuration)][binPsi][binChi][binPhi][binTime] += values[i][ii][iii]
-                    print(int(iii/eventDuration),binPsi,binChi,binPhi,binTime,values[i][ii][iii],file=f_out)
-        if iii%10==0:
-            print(float(iii)/float(histoTime.nbins)*100,' % of data processed ')
-    f_out.close()
-    '''
-    
+    import healpy as hp
+    from common.funzioni_comuni import read_base_pipeline_params,read_file_histo,read_trigger_content
     from common.models import SimpleCNN3
-    model = SimpleCNN3()
-    state = torch.load('/home/gamma/workspace/data/transient/Model_AnomalyDetection.pth')
-    model.load_state_dict(state)
-    '''
-    fileNum=0
-    for time in range(t_scan_start,t_scan_stop):
-        outputFile='/home/gamma/workspace/data/transient/timescan/cosi-AD_detect_' + str(fileNum) + '.txt'
-    '''
+    from astropy.time import Time
+    from histpy import Histogram
+    from mhealpy import HealpixMap
+    from scoords import SpacecraftFrame
 
+    criterion = nn.CrossEntropyLoss()
+
+    t_scan_start_source,t_scan_stop_source,t_scan_start_back,t_scan_stop_back,t_scan_delta,content_trigger,threshold_TS,directory_output = read_base_pipeline_params(pipeline_input_file)
+    externalTrigger_start,externalTrigger_stop = read_trigger_content(content_trigger)
+
+    timeBin = 1
+    resolutionImage = 50
+    binNumTime=65
+    FileName=directory_output+"FileOut_test_back_full_backgr"
+    durationEvent = 65
+    numberEventstest=1
+    t0_test=0
+    
+    #data_full     = Histogram.open(directory_output+"tsel_binned_data_local_Background_Model.hdf5")
+    data_full     = Histogram.open(directory_output+"tsel_binned_data_local_galbk_grbdc3.hdf5")
+    imagePlotX_Z_t_test = read_file_histo(data_full,t0_test,t0_test+binNumTime,resolutionImage,binNumTime,FileName,durationEvent,numberEventstest)
+
+    model = SimpleCNN3()
+    state = torch.load(base_funct+'common/Model_AnomalyDetection.pth')
+    model.load_state_dict(state)
+
+    lossTensor = torch.zeros(int(durationEvent))
+    frameNum = torch.zeros(int(durationEvent))
+    
+    lossMap_3D_tmp = torch.zeros((numberEventstest,resolutionImage,resolutionImage,resolutionImage,int(binNumTime)))
+
+    for t in range(0,durationEvent):
+        image_for_input = imagePlotX_Z_t_test[:,:,:,:,int(t)]
+        outTEST=model(image_for_input)
+        lossPlot = criterion(outTEST,image_for_input)
+        frameNum[int(t)]=int(t)
+        lossTensor[int(t)]=float(lossPlot)
+        outClone=outTEST.clone()
+        imageClone=image_for_input.clone()
+        lossMap_3D_tmp[0:1,:,:,:,int(t)] += (outClone - imageClone)**2
+
+    skymaptoplot = torch.t(lossMap_3D_tmp[0,:,:,0:10,40:60].sum(dim=3).sum(dim=2))
+    
+    arrTest_2 = np.zeros(data_full.project('PsiChi').nbins)
+    for i in range(skymaptoplot.shape[0]):
+        for ii in range(skymaptoplot.shape[1]):
+            ang1=np.deg2rad(float(ii*(180. / resolutionImage)))
+            ang2=np.deg2rad(float(i*(360. / resolutionImage)))
+            pixel_2=hp.ang2pix(8,ang1,ang2)
+            arrTest_2[pixel_2]+=skymaptoplot[i][ii]
+    
+    plt.figure(figsize=(16.03, 10.41) ) 
+    plt.plot(frameNum,lossTensor)
+    plt.title('Anomaly detection - Loss curve')
+    plt.xlabel("Frame number")
+    plt.ylabel('Loss curve')
+    plt.savefig(directory_output+'loss_curve.png')
+    
+    plt.figure(figsize=(16.03, 10.41) ) 
+    plt.imshow(skymaptoplot.detach().numpy())
+    plt.gca().invert_yaxis() 
+    plt.title('LossMap - example; Test set')
+    plt.xlabel('Bin X')
+    plt.ylabel('Bin Y')
+    plt.clim(0,10)
+    plt.colorbar()
+    plt.savefig(directory_output+'imageLoss_2DPLot.png')
+
+    ori = load_ori(directory_output+'InputFiles/DC3_final_530km_3_month_with_slew_1sbins_GalacticEarth_SAA.ori')
+    tstart=Time(t_scan_start_source, format='unix')
+    tstop=Time(t_scan_stop_source, format='unix')
+    tmiddle=(t_scan_start_source+t_scan_stop_source)/2.
+    m = HealpixMap(nside = 8, coordsys=SpacecraftFrame( attitude = ori.interp_attitude(Time(tmiddle, format='unix')   )))
+    
+    for i in range(data_full.project('PsiChi').nbins):
+        content =arrTest_2[i]
+        m[i]+=content
         
+    fig,ax = plt.subplots(subplot_kw = {'projection':'mollview', 'coord':'G'})
+    m.plot(ax)
+    plt.savefig(directory_output+'imageLoss_GalCoord_rot.png')
+
+    
+def cnn_locate(cosipy_yaml_input,pipeline_input_file,base_funct):
+    print('cnn_locate')
+     
 def execute_threemlfit(cosipy_yaml_input,pipeline_input_file,outputdir,fitmodel,scanvar,base_funct):
     import cosipy
     from cosipy.pipeline.task.task import cosi_threemlfit
     import sys
     sys.path.append(base_funct)
     from common.funzioni_comuni import read_cosi_ts_detect,read_base_pipeline_params,format_override_val,read_trigger_content
-    t_scan_start_source,t_scan_stop_source,t_scan_start_back,t_scan_stop_back,t_scan_delta,content_trigger,directory_output = read_base_pipeline_params(pipeline_input_file)
+    from PIL import Image, ImageDraw, ImageFont
+    from threeML import JointLikelihood,DataList,XYLike,Model,PointSource,Constant
+    import numpy as np
+    t_scan_start_source,t_scan_stop_source,t_scan_start_back,t_scan_stop_back,t_scan_delta,content_trigger,threshold_TS,directory_output = read_base_pipeline_params(pipeline_input_file)
     externalTrigger_start,externalTrigger_stop = read_trigger_content(content_trigger)
     
     measured_l=float(0.)
@@ -194,10 +236,38 @@ def execute_threemlfit(cosipy_yaml_input,pipeline_input_file,outputdir,fitmodel,
         measured_l,measured_b,error_coo,maxumumTS=read_cosi_ts_detect(outputdir+'cosi-tsdetect_'+str(time)+'.txt')
         
         args=['--config',cosipy_yaml_input, '--config_group', 'threemlfit_'+modelname,'--override',var_override1,var_override2,var_override3,var_override4,var_override5,var_override6,var_override7,var_override8,'--overwrite', '--suffix',modelname+'_'+str(time),'--output-dir',outputdir,'--tstart',str(time),'--tstop',str(time+t_scan_delta)]
-        if maxumumTS>50:# to be decided based on statistical arguments
+        if maxumumTS>float(threshold_TS):
             print("REEADY cosi_threemlfit "+modelname)
             cosi_threemlfit(argv=args)
+        else:            
+            img = Image.new("RGBA",size=(1000,1000),color=(255,255,255,255))
+            txt = Image.new("RGBA",size=(1000,1000),)
+            font = ImageFont.truetype("DejaVuSans.ttf", 40)
+            draw = ImageDraw.Draw(txt)
+            draw.text((100, 400),"Under threshold!" ,font=font,fill=(0, 0, 0, 255))
+            draw.text((100, 500),"Time "+str(time)+' s; model= '+str(modelname),font=font,fill=(0, 0, 0, 255))
+            out = Image.alpha_composite(img, txt)
+            out.save(str(outputdir)+"raw_spectrum_"+str(modelname)+"_"+str(time)+".png")
 
+            ###################
+            x = np.array([1.0])
+            y = np.array([0.0])
+            yerr = np.array([1.0])
+            plugin = XYLike("single_point", x, y, yerr)
+            plugins = DataList(plugin)
+            model = Model(
+                PointSource(
+                "src",
+                0, 0,
+                spectral_shape=Constant()
+                )
+            )
+            model.src.spectrum.main.value = 0.0
+            
+            like = JointLikelihood(model, plugins, verbose=False)
+            like.fit()
+            results=like.results
+            results.write_to(str(outputdir)+"results_"+str(modelname)+"_"+str(time)+".h5",as_hdf=True)
 
 def build_pdf_file(cosipy_yaml_input,pipeline_input_file,base_funct):
     import cosipy
@@ -209,7 +279,7 @@ def build_pdf_file(cosipy_yaml_input,pipeline_input_file,base_funct):
     import sys
     sys.path.append(base_funct)
     from common.funzioni_comuni import read_cosi_ts_detect,read_trigger_content,read_base_pipeline_params
-    t_scan_start_source,t_scan_stop_source,t_scan_start_back,t_scan_stop_back,t_scan_delta,content_trigger,directory_output = read_base_pipeline_params(pipeline_input_file)
+    t_scan_start_source,t_scan_stop_source,t_scan_start_back,t_scan_stop_back,t_scan_delta,content_trigger,threshold_TS,directory_output = read_base_pipeline_params(pipeline_input_file)
     externalTrigger_start,externalTrigger_stop = read_trigger_content(content_trigger)
     # read max TS on total interval - External trigger
     measured_l,measured_b,error_coo,maxumumTS=read_cosi_ts_detect(directory_output+'cosi-tsdetect_'+str(externalTrigger_start)+'.txt')
@@ -255,10 +325,12 @@ def build_pdf_file(cosipy_yaml_input,pipeline_input_file,base_funct):
     pngs_sorted.append(directory_output+'raw_ts_'+str(externalTrigger_start)+'.png')
     frame_numtot=len(pngs_sorted)
 
+    imgsize=0
     frameNum=0
     for path in pngs_sorted:
         img = Image.open(path)
         txt = Image.new("RGBA", img.size)
+        imgsize=img.size
         
         font = ImageFont.truetype("DejaVuSans.ttf", 40)
         font2 = ImageFont.truetype("DejaVuSans.ttf", 30)
@@ -281,11 +353,27 @@ def build_pdf_file(cosipy_yaml_input,pipeline_input_file,base_funct):
             draw.text((1100, 100),'External stop='+str(math.trunc(externalTrigger_stop*10)/10)+' s',font=font2,fill=(255, 0, 0, 255))
 
         out = Image.alpha_composite(img, txt)
-        
         pages.append(out.convert("RGB"))
         frameNum+=1
 
-        
+    img_anomaly = Image.open(directory_output+'loss_curve.png')
+    txt_anomaly = Image.new("RGBA", img_anomaly.size)
+    out_anomaly = Image.alpha_composite(img_anomaly, txt_anomaly)
+    out_anomaly=out_anomaly.resize(imgsize)
+    pages.append(out_anomaly.convert("RGB"))
+
+    img_anomaly2 = Image.open(directory_output+'imageLoss_2DPLot.png')
+    txt_anomaly2 = Image.new("RGBA", img_anomaly2.size)
+    out_anomaly2 = Image.alpha_composite(img_anomaly2, txt_anomaly2)
+    out_anomaly2=out_anomaly2.resize(imgsize)
+    pages.append(out_anomaly2.convert("RGB"))
+
+    img_anomaly4 = Image.open(directory_output+'imageLoss_GalCoord_rot.png')
+    txt_anomaly4 = Image.new("RGBA", img_anomaly4.size)
+    out_anomaly4 = Image.alpha_composite(img_anomaly4, txt_anomaly4)
+    out_anomaly4=out_anomaly4.resize(imgsize)
+    pages.append(out_anomaly4.convert("RGB"))
+    
     pages[0].save(
         directory_output+'raw_ts_sequence.pdf',
         save_all=True,
@@ -305,7 +393,7 @@ def build_spectral_fit(cosipy_yaml_input,pipeline_input_file,modeltoplot,base_fu
 
     sys.path.append(base_funct)
     from common.funzioni_comuni import read_cosi_ts_detect,read_trigger_content,read_base_pipeline_params,read_spectral_fit_info
-    t_scan_start_source,t_scan_stop_source,t_scan_start_back,t_scan_stop_back,t_scan_delta,content_trigger,directory_output = read_base_pipeline_params(pipeline_input_file)
+    t_scan_start_source,t_scan_stop_source,t_scan_start_back,t_scan_stop_back,t_scan_delta,content_trigger,threshold_TS,directory_output = read_base_pipeline_params(pipeline_input_file)
     externalTrigger_start,externalTrigger_stop = read_trigger_content(content_trigger)
     
     nameFiles_fit = []
@@ -317,9 +405,9 @@ def build_spectral_fit(cosipy_yaml_input,pipeline_input_file,modeltoplot,base_fu
             
     nameFiles_fit_sorted = sorted(
         nameFiles_fit,
-        key=lambda f: int(re.findall(r'\d+', f)[-1])
+        key=lambda f: int(re.findall(r'\d+', f)[-2])
     )
-
+        
     nameFiles_fit_external = []
     for f in os.listdir(directory_output):
         if f.lower().endswith(".h5") and str(modeltoplot) in f:
@@ -329,7 +417,7 @@ def build_spectral_fit(cosipy_yaml_input,pipeline_input_file,modeltoplot,base_fu
             
     nameFiles_fit_external_sorted = sorted(
         nameFiles_fit_external,
-        key=lambda f: int(re.findall(r'\d+', f)[-1])
+        key=lambda f: int(re.findall(r'\d+', f)[-2])
     )
     
     for list_tmp in nameFiles_fit_external_sorted:
@@ -351,6 +439,7 @@ def build_spectral_fit(cosipy_yaml_input,pipeline_input_file,modeltoplot,base_fu
     # read png for external trigger
     pngs_sorted.append(directory_output+'raw_spectrum_'+modeltoplot+'_'+str(externalTrigger_start)+'.png')
 
+    #for name in pngs_sorted:
     for name in nameFiles_fit_sorted:
         num = re.findall(r"\d+", name)[0]
         timeFiles.append(num)
@@ -373,7 +462,6 @@ def build_spectral_fit(cosipy_yaml_input,pipeline_input_file,modeltoplot,base_fu
         draw.text((600, 30),str(modeltoplot) ,font=font3,fill=(255, 0, 0, 255))
 
         if frameNum<frame_numtot-1:
-            draw.text((450, 60), "Only frames with TS above threshold " ,font=font2,fill=(255, 0, 0, 255))
 
             name_var,value_var,errneg_var,errpos_var,unit_var = read_spectral_fit_info(frameNum,directory_output+'timescan/',modeltoplot)
 
@@ -412,7 +500,7 @@ def prepare_alert_external(cosipy_yaml_input,pipeline_input_file,base_funct):
 
     sys.path.append(base_funct)
     from common.funzioni_comuni import read_cosi_ts_detect,read_trigger_content,read_base_pipeline_params
-    t_scan_start_source,t_scan_stop_source,t_scan_start_back,t_scan_stop_back,t_scan_delta,content_trigger,directory_output = read_base_pipeline_params(pipeline_input_file)
+    t_scan_start_source,t_scan_stop_source,t_scan_start_back,t_scan_stop_back,t_scan_delta,content_trigger,threshold_TS,directory_output = read_base_pipeline_params(pipeline_input_file)
     externalTrigger_start,externalTrigger_stop = read_trigger_content(content_trigger)
     # read max TS on total interval - External trigger
     measured_l,measured_b,error_coo,maxumumTS=read_cosi_ts_detect(directory_output+'cosi-tsdetect_'+str(externalTrigger_start)+'.txt')
@@ -437,7 +525,7 @@ def prepare_alert_external(cosipy_yaml_input,pipeline_input_file,base_funct):
         print('Alert from external trigger ',file=f)
         print('Origin XYZ (Fast pipeline, GCN...)',file=f)
         
-        if maxumumTS>50:
+        if maxumumTS>float(threshold_TS):
             print('Confirmed_ext ',1,file=f)
             print('timeStart ',externalTrigger_start,file=f)
             print('timeStart ',externalTrigger_stop,file=f)
@@ -457,7 +545,7 @@ def prepare_alert_external(cosipy_yaml_input,pipeline_input_file,base_funct):
             measured_l_tmp,measured_b_tmp,error_coo_tmp,maxumumTS_tmp=read_cosi_ts_detect(file)
             timestart=t_scan_start_source + (time_frame*t_scan_delta)
             timestop= timestart + t_scan_delta
-            if maxumumTS_tmp>50:
+            if maxumumTS_tmp>float(threshold_TS):
                 print('Independent ',1,file=f)
                 print('timeStart ',timestart,file=f)
                 print('timeStart ',timestop,file=f)
@@ -478,9 +566,9 @@ default_args = {
 }
 
 with DAG(
-    dag_id="PipelineComprehensive_v3",
+    dag_id="PipelineComprehensive_v4",
     default_args=default_args,
-    description="Run version 3 comprehensive pipeline - python version",
+    description="Run version 4 comprehensive pipeline - python version",
     schedule_interval=None,   # run on-demand
     catchup=False,
     tags=["cosifest", "handson", "tutorials"],
@@ -522,6 +610,21 @@ with DAG(
         op_args=[cosipy_yaml_input_file,pipeline_configs,base_funct_dir],
     )
     
+    
+    anomalydetection = ExternalPythonOperator(
+        task_id="anomaly_detection",
+        python=EXTERNAL_PYTHON,  # Specifica l'interprete dell'ambiente cosipy
+        python_callable=AnomalyDetection_autoencoder,
+        op_args=[cosipy_yaml_input_file,pipeline_configs,base_funct_dir],
+    )
+    
+    cnn_source_location = ExternalPythonOperator(
+        task_id="cnn_source_location",
+        python=EXTERNAL_PYTHON,  # Specifica l'interprete dell'ambiente cosipy
+        python_callable=cnn_locate,
+        op_args=[cosipy_yaml_input_file,pipeline_configs,base_funct_dir],
+    )
+    
     build_pdf = ExternalPythonOperator(
         task_id="build_pdf",
         python=EXTERNAL_PYTHON,  # Specifica l'interprete dell'ambiente cosipy
@@ -544,7 +647,7 @@ with DAG(
         op_args=[cosipy_yaml_input_file,pipeline_configs,dir_out+'timescan/',i,1,base_funct_dir],
         )
         fittask_scan.append(t)
-
+    
     fittask_externaltrigger = []
     for i in range(2):
         modelname=""
@@ -563,7 +666,7 @@ with DAG(
     
     wait_for_file = FileSensor(
         task_id="wait_for_file",
-        filepath=dir_out+"InputFiles/galbk_grbdc3_full.fits",  # percorso del file da monitorare
+        filepath=dir_out+"InputFiles/data_grbdc3_full.fits",  # percorso del file da monitorare
         poke_interval=5,   # controlla ogni 5 secondi
         timeout=60 * 3,    # smette dopo 3 minuti
         mode="poke",      # oppure "reschedule" per ridurre il carico
@@ -602,38 +705,33 @@ with DAG(
         python_callable=prepare_alert_external,
         op_args=[cosipy_yaml_input_file,pipeline_configs,base_funct_dir],
     )
-        
+    
     
     join = EmptyOperator(task_id="join")
-
     
-     
     wait_for_file>>cleanup_format
     cleanup_format>>[executebinning_bck,executebinning_grb]>>join
-    join>>[wait_external_trigger>>tsmap_singlesource,tsmap_singlesource_scan] #,anomalydetection]
+    join>>[wait_external_trigger>>tsmap_singlesource,tsmap_singlesource_scan,anomalydetection]
     tsmap_singlesource_scan>>fittask_scan
     tsmap_singlesource>>fittask_externaltrigger
+    anomalydetection>>cnn_source_location>>build_pdf
     fittask_scan>>build_pdf
     fittask_externaltrigger>>build_pdf>>merge_spectral_fit_multiple>>prepare_alert_external_exe
     
-
+    #fittask_scan
+    #fittask_externaltrigger
+    #merge_spectral_fit_multiple
+    #prepare_alert_external_exe
+    
     '''
     choice = BranchPythonOperator(
         task_id="branch",
         python_callable=choose_fit_method
     )
+    '''
     
     '''
-    '''
-    anomalydetection = ExternalPythonOperator(
-        task_id="anomaly_detection",
-        python=EXTERNAL_PYTHON,  # Specifica l'interprete dell'ambiente cosipy
-        python_callable=AnomalyDetection_autoencoder,
-        op_args=[cosipy_yaml_input_file,pipeline_configs],
-    )
-    '''
-'''
-def choose_fit_method():
+    def choose_fit_method():
     method_choose=-1
     f_file = open('/home/gamma/workspace/data/transient/config_pipeline.txt')
     content_file = f_file.read().splitlines()
@@ -646,4 +744,4 @@ def choose_fit_method():
         return "execute_bindata_threemlfit1"
     if method_choose==2:
         return "execute_bindata_threemlfit2"
-'''
+    '''

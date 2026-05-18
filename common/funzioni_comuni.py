@@ -27,6 +27,7 @@ def read_base_pipeline_params(namefile):
     external_trigger_file=""
     output_dir=""
     t_scan_delta=0
+    threshold_TS=0
     f_file = open(namefile)
     content_file = f_file.read().splitlines()
     for line_file in content_file:
@@ -45,9 +46,10 @@ def read_base_pipeline_params(namefile):
             external_trigger_file=str( line_object[1])
         if line_object[0]=="OutputDir":
             output_dir=str( line_object[1])
-        
+        if line_object[0]=="thresholdTS":
+            threshold_TS=str( line_object[1])
 
-    return t_scan_start_source,t_scan_stop_source,t_scan_start_back,t_scan_stop_back,t_scan_delta,external_trigger_file,output_dir
+    return t_scan_start_source,t_scan_stop_source,t_scan_start_back,t_scan_stop_back,t_scan_delta,external_trigger_file,threshold_TS,output_dir
 
 def read_trigger_content(contentname):
     externalTrigger_start=0
@@ -89,12 +91,15 @@ def format_override_val(fitmodel,measured_l,measured_b,error_coo):
     return var_override1,var_override2,var_override3,var_override4,var_override5,var_override6,var_override7,var_override8,modelname
 
 
-def read_file_histo(startPoint,endPoint,resolutionImage_tmp,binNumTime_tmp,output_name,eventDuration,numEvt):
+def read_file_histo(data_full,startPoint,endPoint,resolutionImage_tmp,binNumTime_tmp,output_name,eventDuration,numEvt):
     import cosipy
     import torch
     from histpy import Histogram
-    data_full     = Histogram.open("/home/gamma/workspace/data/apps/tsel_binned_data_galactic_Background_forTraining_BACKONLY.hdf5")
+    import healpy as hp
+    import numpy as np
+        
     imagePlotX_Z_t_tmp = torch.zeros(numEvt,resolutionImage_tmp,resolutionImage_tmp,resolutionImage_tmp,int(binNumTime_tmp))
+    
     values = data_full.slice[{ "Time": slice(startPoint,endPoint) }].project("PsiChi","Phi","Time").contents
     histoPhi = data_full.slice[{ "Time": slice(startPoint,endPoint) }].project('Phi')
     histoTime = data_full.slice[{ "Time": slice(startPoint,endPoint) }].project('Time')
@@ -106,24 +111,23 @@ def read_file_histo(startPoint,endPoint,resolutionImage_tmp,binNumTime_tmp,outpu
             referenceBin=iii
         binTime = int(histoTime.axes['Time'].centers[iii].value - histoTime.axes['Time'].centers[referenceBin].value)             
 
-
         for i in range(data_full.project('PsiChi').nbins):
             Psi = hp.pix2ang(8, i)[0]
             Chi = hp.pix2ang(8, i)[1]
-            binPsi = int(np.rad2deg(Psi) / 180. * resolutionImage)
-            binChi = int(np.rad2deg(Chi) / 360. * resolutionImage)
+            binPsi = int(np.rad2deg(Psi) / 180. * resolutionImage_tmp)
+            binChi = int(np.rad2deg(Chi) / 360. * resolutionImage_tmp)
 
             for ii in range(histoPhi.nbins):
-                binPhi = int(histoPhi.axes['Phi'].centers[ii].value / 180. * resolutionImage)
+                binPhi = int(histoPhi.axes['Phi'].centers[ii].value / 180. * resolutionImage_tmp)
                 if values[i][ii][iii]>0:
                     imagePlotX_Z_t_tmp[int(iii/eventDuration)][binPsi][binChi][binPhi][binTime] += values[i][ii][iii]
                     print(int(iii/eventDuration),binPsi,binChi,binPhi,binTime,values[i][ii][iii],file=f_out)
         if iii%10==0:
             print(float(iii)/float(histoTime.nbins)*100,' % of data processed ')
     f_out.close()
-
+    
     return imagePlotX_Z_t_tmp
-
+    
 def read_spectral_fit_info(filetoprint,dir_plots,modeltoplot):
     from histpy import Histogram
     import os
