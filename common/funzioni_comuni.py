@@ -28,6 +28,7 @@ def read_base_pipeline_params(namefile):
     output_dir=""
     t_scan_delta=0
     threshold_TS=0
+    file_anomaly_detection=""
     f_file = open(namefile)
     content_file = f_file.read().splitlines()
     for line_file in content_file:
@@ -48,8 +49,10 @@ def read_base_pipeline_params(namefile):
             output_dir=str( line_object[1])
         if line_object[0]=="thresholdTS":
             threshold_TS=str( line_object[1])
-
-    return t_scan_start_source,t_scan_stop_source,t_scan_start_back,t_scan_stop_back,t_scan_delta,external_trigger_file,threshold_TS,output_dir
+        if line_object[0]=="AnomalyDetectionFile":
+            file_anomaly_detection = str( line_object[1])
+        
+    return t_scan_start_source,t_scan_stop_source,t_scan_start_back,t_scan_stop_back,t_scan_delta,external_trigger_file,threshold_TS,output_dir,file_anomaly_detection
 
 def read_trigger_content(contentname):
     externalTrigger_start=0
@@ -64,6 +67,38 @@ def read_trigger_content(contentname):
         if line_trigger[0]=="timeStop":
             externalTrigger_stop=int(line_trigger[1])
     return externalTrigger_start,externalTrigger_stop
+
+def read_anomaly_detection_config(contentname):
+    input_file_name=""
+    model_file=""
+    resolution_angle=0
+    resolution_time=0
+    plotting_window=0
+    ori_file=""
+    true_b=0
+    true_l=0
+    f_file = open(contentname)
+    content_file = f_file.read().splitlines()
+    for line_trigger_tot in content_file:
+        line_trigger=line_trigger_tot.split()
+        if line_trigger[0]=="input_file":
+            input_file_name=str(line_trigger[1])
+        if line_trigger[0]=="model_file":
+            model_file=str(line_trigger[1])
+        if line_trigger[0]=="resolution_angle":
+            resolution_angle=int(line_trigger[1])
+        if line_trigger[0]== "resolution_time":
+            resolution_time=int(line_trigger[1])
+        if line_trigger[0]== "plotting_window":
+            plotting_window=int(line_trigger[1])
+        if line_trigger[0]== "orientation_file":
+            ori_file=str(line_trigger[1])
+        if line_trigger[0]== "true_position":
+            true_b=float(line_trigger[1])
+            true_l=float(line_trigger[2])
+
+    return input_file_name,model_file,resolution_angle,resolution_time,plotting_window,ori_file,true_b,true_l
+
 
 def format_override_val(fitmodel,measured_l,measured_b,error_coo):
     modelname="zero"
@@ -143,7 +178,7 @@ def read_spectral_fit_info(filetoprint,dir_plots,modeltoplot):
             
     nameFiles_fit_sorted = sorted(
         nameFiles_fit,
-        key=lambda f: int(re.findall(r'\d+', f)[-1])
+        key=lambda f: int(re.findall(r'\d+', f)[-2])
     )
 
     with h5py.File(nameFiles_fit_sorted[int(filetoprint)], "r") as f:
