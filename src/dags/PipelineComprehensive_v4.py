@@ -65,7 +65,7 @@ def execute_tsmap_externaltrigger(cosipy_yaml_input,pipeline_input_file,base_fun
     from common.funzioni_comuni import read_base_pipeline_params,read_trigger_content
 
     t_scan_start_source,t_scan_stop_source,t_scan_start_back,t_scan_stop_back,t_scan_delta,content_trigger,threshold_TS,directory_output,file_anomaly_detection = read_base_pipeline_params(pipeline_input_file)
-    externalTrigger_start,externalTrigger_stop = read_trigger_content(content_trigger)
+    externalTrigger_start,externalTrigger_stop,flag_trigger = read_trigger_content(content_trigger)
     outputFile=directory_output+'cosi-tsdetect_' + str(externalTrigger_start) + '.txt'
     newpngFileName=directory_output+'raw_ts_' + str(externalTrigger_start) + '.png'
     
@@ -127,7 +127,7 @@ def AnomalyDetection_autoencoder(cosipy_yaml_input,pipeline_input_file,base_func
     criterion = nn.CrossEntropyLoss()
 
     t_scan_start_source,t_scan_stop_source,t_scan_start_back,t_scan_stop_back,t_scan_delta,content_trigger,threshold_TS,directory_output,file_anomaly_detection = read_base_pipeline_params(pipeline_input_file)
-    externalTrigger_start,externalTrigger_stop = read_trigger_content(content_trigger)
+    externalTrigger_start,externalTrigger_stop,flag_trigger = read_trigger_content(content_trigger)
     input_file_name,model_file,resolutionImage,timeBin,plotting_window,ori_file,true_b,true_l=read_anomaly_detection_config(file_anomaly_detection)
     
     FileName=directory_output+"FileOut_test_back_full_backgr"
@@ -271,7 +271,7 @@ def execute_threemlfit(cosipy_yaml_input,pipeline_input_file,outputdir,fitmodel,
     from threeML import JointLikelihood,DataList,XYLike,Model,PointSource,Constant
     import numpy as np
     t_scan_start_source,t_scan_stop_source,t_scan_start_back,t_scan_stop_back,t_scan_delta,content_trigger,threshold_TS,directory_output,file_anomaly_detection = read_base_pipeline_params(pipeline_input_file)
-    externalTrigger_start,externalTrigger_stop = read_trigger_content(content_trigger)
+    externalTrigger_start,externalTrigger_stop,flag_trigger = read_trigger_content(content_trigger)
     
     measured_l=float(0.)
     measured_b=float(0.)
@@ -336,7 +336,7 @@ def build_pdf_file(cosipy_yaml_input,pipeline_input_file,base_funct):
     sys.path.append(base_funct)
     from common.funzioni_comuni import read_cosi_ts_detect,read_trigger_content,read_base_pipeline_params
     t_scan_start_source,t_scan_stop_source,t_scan_start_back,t_scan_stop_back,t_scan_delta,content_trigger,threshold_TS,directory_output,file_anomaly_detection = read_base_pipeline_params(pipeline_input_file)
-    externalTrigger_start,externalTrigger_stop = read_trigger_content(content_trigger)
+    externalTrigger_start,externalTrigger_stop,flag_trigger = read_trigger_content(content_trigger)
     # read max TS on total interval - External trigger
     measured_l,measured_b,error_coo,maxumumTS=read_cosi_ts_detect(directory_output+'cosi-tsdetect_'+str(externalTrigger_start)+'.txt')
     
@@ -450,7 +450,7 @@ def build_spectral_fit(cosipy_yaml_input,pipeline_input_file,modeltoplot,base_fu
     sys.path.append(base_funct)
     from common.funzioni_comuni import read_cosi_ts_detect,read_trigger_content,read_base_pipeline_params,read_spectral_fit_info
     t_scan_start_source,t_scan_stop_source,t_scan_start_back,t_scan_stop_back,t_scan_delta,content_trigger,threshold_TS,directory_output,file_anomaly_detection = read_base_pipeline_params(pipeline_input_file)
-    externalTrigger_start,externalTrigger_stop = read_trigger_content(content_trigger)
+    externalTrigger_start,externalTrigger_stop,flag_trigger = read_trigger_content(content_trigger)
     
     nameFiles_fit = []
     for f in os.listdir(directory_output+'timescan/'):
@@ -563,7 +563,7 @@ def prepare_alert_external(cosipy_yaml_input,pipeline_input_file,base_funct):
     sys.path.append(base_funct)
     from common.funzioni_comuni import read_cosi_ts_detect,read_trigger_content,read_base_pipeline_params
     t_scan_start_source,t_scan_stop_source,t_scan_start_back,t_scan_stop_back,t_scan_delta,content_trigger,threshold_TS,directory_output,file_anomaly_detection = read_base_pipeline_params(pipeline_input_file)
-    externalTrigger_start,externalTrigger_stop = read_trigger_content(content_trigger)
+    externalTrigger_start,externalTrigger_stop,flag_trigger = read_trigger_content(content_trigger)
     # read max TS on total interval - External trigger
     measured_l,measured_b,error_coo,maxumumTS=read_cosi_ts_detect(directory_output+'cosi-tsdetect_'+str(externalTrigger_start)+'.txt')
 
@@ -636,7 +636,7 @@ with DAG(
     tags=["cosifest", "handson", "tutorials"],
 ) as dag:
 
-    '''
+    
     cleanup_format = ExternalPythonOperator(
         task_id="cleanup_and_format",
         python=EXTERNAL_PYTHON,  # Specifica l'interprete dell'ambiente cosipy
@@ -672,14 +672,14 @@ with DAG(
         op_args=[cosipy_yaml_input_file,pipeline_configs,base_funct_dir],
     )
     
-    '''
+    
     anomalydetection = ExternalPythonOperator(
         task_id="anomaly_detection",
         python=EXTERNAL_PYTHON,  # Specifica l'interprete dell'ambiente cosipy
         python_callable=AnomalyDetection_autoencoder,
         op_args=[cosipy_yaml_input_file,pipeline_configs,base_funct_dir],
     )
-    '''
+    
     cnn_source_location = ExternalPythonOperator(
         task_id="cnn_source_location",
         python=EXTERNAL_PYTHON,  # Specifica l'interprete dell'ambiente cosipy
@@ -779,13 +779,13 @@ with DAG(
     anomalydetection>>cnn_source_location>>build_pdf
     fittask_scan>>build_pdf
     fittask_externaltrigger>>build_pdf>>merge_spectral_fit_multiple>>prepare_alert_external_exe
-    '''
+    
     #fittask_scan
     #fittask_externaltrigger
     #merge_spectral_fit_multiple
     #prepare_alert_external_exe
 
-    anomalydetection
+    #anomalydetection
     #merge_spectral_fit_multiple
     '''
     choice = BranchPythonOperator(

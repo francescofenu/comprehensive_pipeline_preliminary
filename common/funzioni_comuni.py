@@ -57,6 +57,7 @@ def read_base_pipeline_params(namefile):
 def read_trigger_content(contentname):
     externalTrigger_start=0
     externalTrigger_stop=0
+    trigger_external=False
     f_file = open(contentname)
     content_file = f_file.read().splitlines()
     for line_trigger_tot in content_file:
@@ -66,7 +67,10 @@ def read_trigger_content(contentname):
             externalTrigger_start=int(line_trigger[1])
         if line_trigger[0]=="timeStop":
             externalTrigger_stop=int(line_trigger[1])
-    return externalTrigger_start,externalTrigger_stop
+        if line_trigger[0]=="trigger_external":
+            trigger_external=line_trigger[1]
+
+    return externalTrigger_start,externalTrigger_stop,trigger_external
 
 def read_anomaly_detection_config(contentname):
     input_file_name=""

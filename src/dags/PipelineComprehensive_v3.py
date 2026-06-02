@@ -13,7 +13,7 @@ base_funct_dir="/home/gamma/airflow/modules_pool/comprehensive-transient-analysi
 
 sys.path.append(base_funct_dir)
 from common.funzioni_comuni import read_base_pipeline_params
-t_1,t_2,t_11,t_22,t_delta,cont_trigg,thresh,dir_out = read_base_pipeline_params(pipeline_configs)
+t_1,t_2,t_11,t_22,t_delta,cont_trigg,thresh,dir_out,anomaly = read_base_pipeline_params(pipeline_configs)
 
 def cleanup_and_format():
     # some cleanup and some service directory creation
@@ -32,7 +32,7 @@ def execute_bindata_bck_model(cosipy_yaml_input,pipeline_input_file,base_funct):
     sys.path.append(base_funct)
     from common.funzioni_comuni import read_base_pipeline_params
 
-    t_scan_start_source,t_scan_stop_source,t_scan_start_back,t_scan_stop_back,t_scan_delta,content_trigger,directory_output = read_base_pipeline_params(pipeline_input_file)
+    t_scan_start_source,t_scan_stop_source,t_scan_start_back,t_scan_stop_back,t_scan_delta,content_trigger,directory_output,anomaly= read_base_pipeline_params(pipeline_input_file)
 
     args=['--config',cosipy_yaml_input,'--config_group','bindata_bk','--overwrite', '--suffix','Background_Model','--output-dir',directory_output,'--tmin', str(t_scan_start_back), '--tmax', str(t_scan_stop_back)]
     cosi_bindata (argv=args)
@@ -45,7 +45,7 @@ def execute_bindata_grb(cosipy_yaml_input,pipeline_input_file,base_funct):
     sys.path.append(base_funct)
     from common.funzioni_comuni import read_base_pipeline_params
     
-    t_scan_start_source,t_scan_stop_source,t_scan_start_back,t_scan_stop_back,t_scan_delta,content_trigger,directory_output = read_base_pipeline_params(pipeline_input_file)
+    t_scan_start_source,t_scan_stop_source,t_scan_start_back,t_scan_stop_back,t_scan_delta,content_trigger,directory_output,anomaly = read_base_pipeline_params(pipeline_input_file)
     args=['--config',cosipy_yaml_input,'--config_group','bindata_soubk','--overwrite', '--suffix','galbk_grbdc3','--output-dir',directory_output,'--tmin', str(t_scan_start_source), '--tmax', str(t_scan_stop_source)]
     cosi_bindata (argv=args)
     
@@ -59,7 +59,7 @@ def execute_tsmap_externaltrigger(cosipy_yaml_input,pipeline_input_file,base_fun
     sys.path.append(base_funct)
     from common.funzioni_comuni import read_base_pipeline_params,read_trigger_content
 
-    t_scan_start_source,t_scan_stop_source,t_scan_start_back,t_scan_stop_back,t_scan_delta,content_trigger,directory_output = read_base_pipeline_params(pipeline_input_file)
+    t_scan_start_source,t_scan_stop_source,t_scan_start_back,t_scan_stop_back,t_scan_delta,content_trigger,directory_output,anomaly = read_base_pipeline_params(pipeline_input_file)
     externalTrigger_start,externalTrigger_stop = read_trigger_content(content_trigger)
     outputFile=directory_output+'cosi-tsdetect_' + str(externalTrigger_start) + '.txt'
     newpngFileName=directory_output+'raw_ts_' + str(externalTrigger_start) + '.png'
@@ -79,7 +79,7 @@ def execute_tsmap_scan(cosipy_yaml_input,pipeline_input_file,base_funct):
     sys.path.append(base_funct)
     from common.funzioni_comuni import read_base_pipeline_params
     
-    t_scan_start_source,t_scan_stop_source,t_scan_start_back,t_scan_stop_back,t_scan_delta,content_trigger,directory_output = read_base_pipeline_params(pipeline_input_file)
+    t_scan_start_source,t_scan_stop_source,t_scan_start_back,t_scan_stop_back,t_scan_delta,content_trigger,directory_output,anomaly = read_base_pipeline_params(pipeline_input_file)
     subprocess.run('mkdir '+directory_output+'timescan', shell=True)
 
     fileNum=0
@@ -172,7 +172,7 @@ def execute_threemlfit(cosipy_yaml_input,pipeline_input_file,outputdir,fitmodel,
     import sys
     sys.path.append(base_funct)
     from common.funzioni_comuni import read_cosi_ts_detect,read_base_pipeline_params,format_override_val,read_trigger_content
-    t_scan_start_source,t_scan_stop_source,t_scan_start_back,t_scan_stop_back,t_scan_delta,content_trigger,directory_output = read_base_pipeline_params(pipeline_input_file)
+    t_scan_start_source,t_scan_stop_source,t_scan_start_back,t_scan_stop_back,t_scan_delta,content_trigger,directory_output,anomaly = read_base_pipeline_params(pipeline_input_file)
     externalTrigger_start,externalTrigger_stop = read_trigger_content(content_trigger)
     
     measured_l=float(0.)
@@ -209,7 +209,7 @@ def build_pdf_file(cosipy_yaml_input,pipeline_input_file,base_funct):
     import sys
     sys.path.append(base_funct)
     from common.funzioni_comuni import read_cosi_ts_detect,read_trigger_content,read_base_pipeline_params
-    t_scan_start_source,t_scan_stop_source,t_scan_start_back,t_scan_stop_back,t_scan_delta,content_trigger,directory_output = read_base_pipeline_params(pipeline_input_file)
+    t_scan_start_source,t_scan_stop_source,t_scan_start_back,t_scan_stop_back,t_scan_delta,content_trigger,directory_output,anomaly = read_base_pipeline_params(pipeline_input_file)
     externalTrigger_start,externalTrigger_stop = read_trigger_content(content_trigger)
     # read max TS on total interval - External trigger
     measured_l,measured_b,error_coo,maxumumTS=read_cosi_ts_detect(directory_output+'cosi-tsdetect_'+str(externalTrigger_start)+'.txt')
@@ -305,7 +305,7 @@ def build_spectral_fit(cosipy_yaml_input,pipeline_input_file,modeltoplot,base_fu
 
     sys.path.append(base_funct)
     from common.funzioni_comuni import read_cosi_ts_detect,read_trigger_content,read_base_pipeline_params,read_spectral_fit_info
-    t_scan_start_source,t_scan_stop_source,t_scan_start_back,t_scan_stop_back,t_scan_delta,content_trigger,directory_output = read_base_pipeline_params(pipeline_input_file)
+    t_scan_start_source,t_scan_stop_source,t_scan_start_back,t_scan_stop_back,t_scan_delta,content_trigger,directory_output,anomaly = read_base_pipeline_params(pipeline_input_file)
     externalTrigger_start,externalTrigger_stop = read_trigger_content(content_trigger)
     
     nameFiles_fit = []
@@ -412,7 +412,7 @@ def prepare_alert_external(cosipy_yaml_input,pipeline_input_file,base_funct):
 
     sys.path.append(base_funct)
     from common.funzioni_comuni import read_cosi_ts_detect,read_trigger_content,read_base_pipeline_params
-    t_scan_start_source,t_scan_stop_source,t_scan_start_back,t_scan_stop_back,t_scan_delta,content_trigger,directory_output = read_base_pipeline_params(pipeline_input_file)
+    t_scan_start_source,t_scan_stop_source,t_scan_start_back,t_scan_stop_back,t_scan_delta,content_trigger,directory_output,anomaly = read_base_pipeline_params(pipeline_input_file)
     externalTrigger_start,externalTrigger_stop = read_trigger_content(content_trigger)
     # read max TS on total interval - External trigger
     measured_l,measured_b,error_coo,maxumumTS=read_cosi_ts_detect(directory_output+'cosi-tsdetect_'+str(externalTrigger_start)+'.txt')
