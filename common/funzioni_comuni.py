@@ -72,6 +72,40 @@ def read_trigger_content(contentname):
 
     return externalTrigger_start,externalTrigger_stop,trigger_external
 
+def read_trigger_content_multiple(filelistname):
+    import torch
+
+    f_file_list = open(filelistname)
+    content_file_list = f_file_list.read().splitlines()
+    ###
+    numFiles_trigger = len(content_file_list)
+    print(numFiles_trigger," trigger files detected")
+    externalTrigger_start=torch.zeros(int(numFiles_trigger),dtype=torch.int64)
+    externalTrigger_stop=torch.zeros(int(numFiles_trigger),dtype=torch.int64)
+    trigger_external=numFiles_trigger
+    ###
+    file_test=0
+    for line_file_name in content_file_list:        
+        f_file = open(line_file_name)
+        content_file = f_file.read().splitlines()
+        for line_trigger_tot in content_file:
+            line_trigger=line_trigger_tot.split()
+            if line_trigger[0]=="timeStart":
+                externalTrigger_start[file_test]=int(line_trigger[1])
+                print('********************** ',line_trigger[0],line_trigger[1],int(line_trigger[1]))
+            if line_trigger[0]=="timeStop":
+                externalTrigger_stop[file_test]=int(line_trigger[1])
+        file_test+=1
+    print('++++++++++++++------- ',externalTrigger_start)
+    return externalTrigger_start,externalTrigger_stop,numFiles_trigger
+
+def count_trigger_num(filelistname):
+    f_file_list = open(filelistname)
+    content_file_list = f_file_list.read().splitlines()
+    numFiles_trigger = len(content_file_list)
+    print(numFiles_trigger," trigger files detected")
+    return numFiles_trigger
+
 def read_anomaly_detection_config(contentname):
     input_file_name=""
     model_file=""
@@ -167,6 +201,44 @@ def read_file_histo(data_full,startPoint,endPoint,resolutionImage_tmp,binNumTime
     
     return imagePlotX_Z_t_tmp
     
+def read_file_histo2(data_full,startPoint,endPoint,resolutionImage_tmp,binNumTime_tmp,output_name,eventDuration,numEvt):
+    import cosipy
+    import torch
+    from histpy import Histogram
+    import healpy as hp
+    import numpy as np
+
+    imagePlotX_Z_t_tmp = torch.zeros(numEvt,resolutionImage_tmp,2*resolutionImage_tmp,resolutionImage_tmp,int(binNumTime_tmp))
+    
+    values = data_full.slice[{ "Time": slice(startPoint,endPoint) }].project("PsiChi","Phi","Time").contents
+    histoPhi = data_full.slice[{ "Time": slice(startPoint,endPoint) }].project('Phi')
+    histoTime = data_full.slice[{ "Time": slice(startPoint,endPoint) }].project('Time')
+    
+    f_out = open(output_name,"w")
+    referenceBin=0
+    for iii in range(histoTime.nbins):
+        if iii%eventDuration==0:
+            referenceBin=iii
+        binTime = int(histoTime.axes['Time'].centers[iii].value - histoTime.axes['Time'].centers[referenceBin].value)             
+
+        for i in range(data_full.project('PsiChi').nbins):
+            Psi = hp.pix2ang(8, i)[0]
+            Chi = hp.pix2ang(8, i)[1]
+            binPsi = int(np.rad2deg(Psi) / 180. * resolutionImage_tmp)
+            binChi = int(np.rad2deg(Chi) / 360. * 2 * resolutionImage_tmp)
+
+            for ii in range(histoPhi.nbins):
+                binPhi = int(histoPhi.axes['Phi'].centers[ii].value / 180. * resolutionImage_tmp)
+                if values[i][ii][iii]>0:
+                    imagePlotX_Z_t_tmp[int(iii/eventDuration)][binPsi][binChi][binPhi][binTime] += values[i][ii][iii]
+                    print(int(iii/eventDuration),binPsi,binChi,binPhi,binTime,values[i][ii][iii],file=f_out)
+        if iii%10==0:
+            print(float(iii)/float(histoTime.nbins)*100,' % of data processed ')
+    f_out.close()
+    
+    return imagePlotX_Z_t_tmp
+
+
 def read_spectral_fit_info(filetoprint,dir_plots,modeltoplot):
     from histpy import Histogram
     import os
@@ -188,3 +260,24 @@ def read_spectral_fit_info(filetoprint,dir_plots,modeltoplot):
     with h5py.File(nameFiles_fit_sorted[int(filetoprint)], "r") as f:
         data = f['AnalysisResults_0']    # leggi un dataset come array NumPy
         return data['NAME'][:],data['VALUE'][:],data['NEGATIVE_ERROR'][:],data['POSITIVE_ERROR'][:],data['UNIT'][:]
+
+def read_file_histo_second(inputfilename,resolutionImage_tmp,binNumTime_tmp,numEvt):
+    import torch
+    from histpy import Histogram
+    import healpy as hp
+    import numpy as np
+
+    imagePlotX_Z_t_tmp = torch.zeros(numEvt,resolutionImage_tmp,2*resolutionImage_tmp,resolutionImage_tmp,int(binNumTime_tmp))
+    fileInput = open(inputfilename)
+    content = fileInput.read().splitlines()
+    for line in content:
+        line2=line.split()
+        numEvent=int(line2[0])
+        binPsi = int(line2[1])
+        binChi = int(line2[2])
+        binPhi = int(line2[3])
+        binTime = int(line2[4])
+        value_save = float(line2[5])
+        if value_save>0 and numEvent<numEvt: # and binTime>=maxevents[numEvent]-10 and binTime<maxevents[numEvent]+10:
+            imagePlotX_Z_t_tmp[numEvent][binPsi][binChi][binPhi][binTime] += value_save
+    return imagePlotX_Z_t_tmp
