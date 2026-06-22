@@ -281,3 +281,33 @@ def read_file_histo_second(inputfilename,resolutionImage_tmp,binNumTime_tmp,numE
         if value_save>0 and numEvent<numEvt: # and binTime>=maxevents[numEvent]-10 and binTime<maxevents[numEvent]+10:
             imagePlotX_Z_t_tmp[numEvent][binPsi][binChi][binPhi][binTime] += value_save
     return imagePlotX_Z_t_tmp
+
+
+def read_trigger_content_multiple_yaml(lib_dir,filelistname):
+    import sys
+    sys.path.append(lib_dir)
+    import torch
+    from yayc import Configurator
+
+    f_file_list = open(filelistname)
+    content_file_list = f_file_list.read().splitlines()
+
+    numFiles_trigger = len(content_file_list)
+    print(numFiles_trigger," yaml trigger files detected")
+    externalTrigger_start=torch.zeros(int(numFiles_trigger),dtype=torch.int64)
+    externalTrigger_stop=torch.zeros(int(numFiles_trigger),dtype=torch.int64)
+    trigger_external=numFiles_trigger
+    
+    file_test=0
+    for line_file_name in content_file_list:        
+        full_config = Configurator.open(str(line_file_name))
+        t_start_source=full_config["external_trigger"]["t_external_start"]
+        t_stop_source=full_config["external_trigger"]["t_external_stop"]
+        lat_ext=full_config["external_trigger"]["lat_ext"]
+        lon_ext=full_config["external_trigger"]["lon_ext"]
+        externalTrigger_start[file_test]=int(t_start_source)
+        externalTrigger_stop[file_test]=int(t_stop_source)
+        file_test+=1
+        
+    print('++++++++++++++------- ',externalTrigger_start)
+    return externalTrigger_start,externalTrigger_stop,numFiles_trigger

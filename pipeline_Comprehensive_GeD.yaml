@@ -359,8 +359,14 @@ general_pipeline_config:
   t_scan_stop_source:   
     1841896450
   t_scan_start_back:  
-    1841896380
+    1841895000
   t_scan_stop_back:   
-    1841896450
+    1841898000
+  t_scan_delta:
+    10
   directory_output:
     /home/gamma/workspace/data/transient2/
+  external_trigger_list:
+    /home/gamma/workspace/data/transient2/ListOfTriggers2.txt
+  ts_threshold:
+     10
