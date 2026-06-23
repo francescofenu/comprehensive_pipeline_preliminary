@@ -32,7 +32,7 @@ def build_custom(dag):
     
     #######################################
     # bin source file
-    '''
+    
     def binning_data(config_path: str, lib_dir: str):
         import os
         import sys
@@ -260,7 +260,7 @@ def build_custom(dag):
         merge_spectral_fit_multiple.append(t)
 
     #######################################
-    '''
+    
     #######################################
     # Build alert file
     def build_alert_file(config_path: str, lib_dir: str):
@@ -283,7 +283,7 @@ def build_custom(dag):
         dag=dag,
     )
     #######################################
-    '''
+    
     #######################################
     # Clean up and format
     def cleanup_funct(config_path: str, lib_dir: str):
@@ -316,7 +316,7 @@ def build_custom(dag):
     check_external_funct>>ged_ts_map_external>>fittask_externaltrigger>>join2
     ged_ts_map_scan>>fittask_scan>>join2
     join2>>build_pdf_task>>merge_spectral_fit_multiple>>build_alert_task
-    '''
+    
     build_alert_task
     
 
